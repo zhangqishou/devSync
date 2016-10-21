@@ -1,6 +1,6 @@
 /*
  * Copyright (C) Reage
- * blog:http://www.rhttp.cn
+ * blog:http://www.ireage.com
  */
 
 #ifndef _HTTP_SEND_PAGE_H_
@@ -14,5 +14,7 @@
 
 
 int send_put_result(http_connect_t * con);
+
+int send_put_forbidden_result(http_connect_t * con);
 
 #endif

@@ -1,8 +1,9 @@
+/*
+ * Copyright (C) Reage
+ * blog:http://www.ireage.com
+ */
 #include "http_request.h"
 
-
-
-static int find_header_end(buffer *b);
 
 
 response * response_init(pool_t *p)
@@ -59,126 +60,19 @@ static int start_web_server(http_conf *g)
 	return epfd;
 }
 
-
-
-static int read_http_header(buffer *header, pool_t *p, int fd)
-{
-	buffer *b;
-	int palloc_size = 1024;
-	char *c ;
-	char *ptr;
-
-	c = palloc(p,sizeof(char));
-	header->ptr = palloc(p, palloc_size);
-	header->size = palloc_size;
-
-
-	while(read(fd, c, 1)) {
-		buffer_append_char(header,*c,p);
-		if(*c == '\n' && header->used >= 2) {
-			ptr =  header->ptr + header->used - 2;
-			if(strncasecmp(ptr, "\n\n", 2) == 0) {
-				return;
-			}
-		}
-	}
-
-	return 0;
-}
-
-/**
- *0 读取结束，其他没有结束
- *
- */
-static int read_header(http_connect_t *con)
-{
-	pool_t *p;
-	buffer *header;
-
-
-	p =(pool_t *) con->p;
-
-	if(con->in->header == NULL)con->in->header = buffer_init(p);
-	header = con->in->header;
-	
-	return read_http_header(header, p, con->fd);
-}
-
-
-static char * skip_space(char *start, char *end){
-	if(start == NULL) return NULL;
-	while( *start == ' ' ) {
-		if(start >= end) return NULL;
-		start ++;
-	}
-
-	return start;
-}
-
-static char * find_line(char *start, char *end) {
-	while(*start != '\n') {
-		if(start >= end) return end;
-		start ++;
-	}
-
-	return start;
-}
-
-
-static void parse_header(http_connect_t * con)
-{
- 	request *in;
-	buffer *header;
-	buffer *b;
-	read_buffer *dst;
-	pool_t *p;
-	char * start, *end;
-
-
-	p = (pool_t *)con->p;
-	dst = (read_buffer *)palloc(p, sizeof(read_buffer));
-	in = con->in;
-	header = in->header;
-	start = (char *)(header->ptr);
-	end = (char *)header->ptr + (header->used - 1);
-	if(strncasecmp(start,"put", 3) == 0) {
-		in->http_method = _PUT;
-		start += 3;
-	}if(strncasecmp(start,"get", 3) == 0) {
-		in->http_method = _GET;
-		start += 3;
-	}
-	else if(strncasecmp(start, "post", 4) == 0) {
-		in->http_method = _POST;
-		start += 4;
-	}
-
-	start = skip_space(start, end);
-	in->uri = (read_buffer *)palloc(p, sizeof(read_buffer));
-	in->uri->ptr = start;
-	start = find_line(start, end);
-	in->uri->size = start - in->uri->ptr;
-	start++;
-
-
-	in->content_length = atoi(start);
-	//test_print_header(in);
-	return ;
-}
-
-
 int accept_handler(http_connect_t *con)
 {
 
- 	con->in = (request *)request_init(con->p);
- 	con->out = (response *)request_init(con->p);
+ 	//con->in = (request *)request_init(con->p);
+ 	//con->out = (response *)response_init(con->p);
 
 
 	read_header(con);
 	parse_header(con);
+	ds_log(con, "  [ACCEPT] ", LOG_LEVEL_DEFAULT);
 	if(con->in->http_method == _PUT) {
-		open_write_file(con);
-		con->next_handle = write_file_content;
+		//open_write_file(con);
+		con->next_handle = open_write_file;
 	} else {
 		con->next_handle = NULL;
 	}
@@ -194,6 +88,9 @@ int start_accept(http_conf *g)
 	struct epoll_event ev[MAX_EVENT];
 	struct epoll_event *evfd ;
 	epoll_extra_data_t *epoll_data;
+	struct sockaddr addr;
+	struct sockaddr_in addrIn;
+	socklen_t addLen = sizeof(struct sockaddr );
 
 
 	start_web_server(g);
@@ -202,15 +99,27 @@ int start_accept(http_conf *g)
 	while(1){
 		count = epoll_wait(g->epfd, ev, MAX_EVENT, -1);
 		evfd = ev;
-		while( (confd =  accept(g->fd, NULL, NULL)) && confd > 0) {
+		while( (confd =  accept(g->fd, &addr, &addLen)) && confd > 0) {
 			pool_t *p = (pool_t *)pool_create();
 			http_connect_t * con;
 			epoll_extra_data_t *data_ptr;
 
+			addrIn =  *((struct sockaddr_in *) &addr);
 			data_ptr = (epoll_extra_data_t *)palloc(p, sizeof(epoll_extra_data_t));
 			con = (http_connect_t *) palloc(p, sizeof(http_connect_t));//换成初始化函数，
 			con->p= p;
 			con->fd = confd;
+			con->in = (request *)request_init(p);
+			con->out = (response *)response_init(p);
+			char *ip  = NULL;
+			if(addrIn.sin_addr.s_addr) {
+				ip = inet_ntoa(addrIn.sin_addr);
+			}
+
+			if(ip) {
+				con->in->clientIp = (string *) string_init_from_str(p, ip, strlen(ip));
+			}
+
 			con->next_handle = accept_handler;
 			data_ptr->type = SOCKFD;
 			data_ptr->ptr = (void *) con;
@@ -218,23 +127,7 @@ int start_accept(http_conf *g)
 			//data struct ,  connect  data struct , file data struct ,
 		}
 		while((evfd->events & EPOLLIN)){
-			/*if(epoll_data->type  == SERVERFD) {
-				int confd =  accept(g->fd, NULL, NULL);
-				pool_t *p = (pool_t *)pool_create();
-				http_connect_t * con;
-				epoll_extra_data_t *data_ptr;
-
-				data_ptr = (epoll_extra_data_t *)palloc(p, sizeof(epoll_extra_data_t));
-				con = (http_connect_t *) palloc(p, sizeof(http_connect_t));//换成初始化函数，
-				con->p= p;
-				con->fd = confd;
-				con->next_handle = accept_handler;
-				data_ptr->type = SOCKFD;
-				data_ptr->ptr = (void *) con;
-				epoll_add_fd(g->epfd, confd, EPOLL_R, (void *)data_ptr);//对epoll data结构指向的结构体重新封装，分websit
-	 			//data struct ,  connect  data struct , file data struct ,
-			}
-			else*/if((evfd->events & EPOLLIN)) {
+			if((evfd->events & EPOLLIN)) {
 				http_connect_t * con;
 				epoll_data = (epoll_data_t *)evfd->data.ptr;
 
@@ -247,11 +140,21 @@ int start_accept(http_conf *g)
                             //epoll_del_fd(g->epfd, evfd);
 						}
 						while(con->next_handle != NULL) {
-                            if(con->next_handle(con) == -1) {
+							int ret = con->next_handle(con);
+							if(ret == -1) {
+								con->next_handle = NULL;
+								epoll_del_fd(g->epfd, evfd);
+								close(con->fd);
+								ds_log(con, "  [END] ", LOG_LEVEL_DEFAULT);
+								pool_destroy(con->p);
+							}else if(ret == 1) {
+								break;
+							}
+                            /*if(con->next_handle(con) == -1) {
                             	epoll_del_fd(g->epfd, evfd);
                                 close(con->fd);
                                 pool_destroy(con->p);
-                            }
+                            }*/
 						}
 	 					break;
 					case CGIFD: {

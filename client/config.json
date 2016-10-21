@@ -1,35 +1,35 @@
 {
-    "local": [
-        {
-            "offline": "/Users/baidu/wmcode/diffdev/goods/",
+    "local": [{
+            "offline": "/Users/reage/devSync",
             "online": "/home/users/rentiansheng/tmp/odp_goods/app/goods",
             "exts": [".php", ".js"],
-            "auto":1
+            "auto": 1
         },
         {
-            "offline": "/Users/baidu/wmcode/diffdev/goods1/",
+            "offline": "/Users/reage/devSync",
             "online": "/home/users/rentiansheng/tmp/odp_goods/app/goods1",
             "exts": [".php", ".js"],
-            "auto":1
+            "auto": 1
         }
     ],
     "path": {
-        "audit":
-        {
-            "online":  "/home/users/rentiansheng_iwm/dev1/bb",
-            "exts": [".php",".log",".js"],
-            "host": "xxxx.com",
+        "devSync": {
+            "online": "/root/devSyncDev",
+            "exts": [".c", ".log", ".h"],
+            "ignore": ["server/obj"],
+            "host": "101.33.106.196",
             "port": "8484"
         },
-        "goods":
-        {
-            "online": "/home/users/rentiansheng_iwm/dev1/aa",
-            "exts": [".php",".log",".js"]
+
+        "devSync": {
+            "online": "/users/rentiansheng/devSync",
+            "exts": [".c", ".log", ".h"],
+            "host": "101.33.106.196",
+            "port": "8484"
         }
     },
     "server": {
-        "host": "xxxxx.com",
+        "host": "127.0.0.1",
         "port": "8484"
     }
 }
-
